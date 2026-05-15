@@ -18,7 +18,8 @@ constexpr int MO5_W        = 320;
 constexpr int MO5_H        = 200;
 constexpr int COLS          = MO5_W / 8;  // 40
 constexpr int ROWS          = MO5_H;      // 200
-constexpr int TOTAL_BLOCKS  = COLS * ROWS; // 8000
+constexpr int TOTAL_BLOCKS  = COLS * ROWS;  // 8000
+constexpr int PACKED_NIBBLES = TOTAL_BLOCKS / 2; // 4000
 
 // ─── Data Structures ─────────────────────────────────────────────────────────
 
@@ -48,16 +49,20 @@ struct NibbleChoice {
 
 // ─── Reorder Functions ───────────────────────────────────────────────────────
 
+// Transpose an 8000-byte buffer from column-major (col0 rows 0-199, col1 rows 0-199, ...)
+// back to row-major (row0 cols 0-39, row1 cols 0-39, ...) for verification.
 std::vector<uint8_t> reorder_col_to_row(const std::vector<uint8_t>& col_major) {
-    std::vector<uint8_t> row_major(8000);
+    std::vector<uint8_t> row_major(TOTAL_BLOCKS);
     for (int col = 0; col < COLS; col++)
         for (int row = 0; row < ROWS; row++)
             row_major[row * COLS + col] = col_major[col * ROWS + row];
     return row_major;
 }
 
+// Transpose an 8000-byte buffer from row-major to column-major.
+// Column-major order groups vertically adjacent blocks together, improving ZX0 compression.
 std::vector<uint8_t> reorder_row_to_col(const std::vector<uint8_t>& row_major) {
-    std::vector<uint8_t> col_major(8000);
+    std::vector<uint8_t> col_major(TOTAL_BLOCKS);
     for (int col = 0; col < COLS; col++)
         for (int row = 0; row < ROWS; row++)
             col_major[col * ROWS + row] = row_major[row * COLS + col];
@@ -66,6 +71,8 @@ std::vector<uint8_t> reorder_row_to_col(const std::vector<uint8_t>& row_major) {
 
 // ─── Nibble Packing ──────────────────────────────────────────────────────────
 
+// Pack vertically-adjacent nibble pairs into single bytes: nibbles[0]<<4 | nibbles[1].
+// Input: 8000 nibbles (column-major). Output: 4000 packed bytes.
 std::vector<uint8_t> pack_nibble_pairs(const std::vector<uint8_t>& nibbles) {
     std::vector<uint8_t> packed(nibbles.size() / 2);
     for (size_t i = 0; i < packed.size(); i++) {
@@ -74,6 +81,7 @@ std::vector<uint8_t> pack_nibble_pairs(const std::vector<uint8_t>& nibbles) {
     return packed;
 }
 
+// Inverse of pack_nibble_pairs: split each byte into two nibbles.
 std::vector<uint8_t> unpack_nibble_pairs(const std::vector<uint8_t>& packed) {
     std::vector<uint8_t> out(packed.size() * 2);
     for (size_t i = 0; i < packed.size(); i++) {
@@ -85,6 +93,11 @@ std::vector<uint8_t> unpack_nibble_pairs(const std::vector<uint8_t>& packed) {
 
 // ─── Free Nibble Logic ───────────────────────────────────────────────────────
 
+// For solid blocks (all-0 or all-1 pixels), only one color nibble is visible.
+// The invisible nibble is free — we set it to maximize run continuity with
+// the previous block's nibble values. If the visible color matches prev_n1
+// exclusively, we keep it in stream 1 (pixels=0xFF); otherwise default to
+// stream 2 (pixels=0x00) which preserves prev_n1 in stream 1.
 NibbleChoice solve_free_nibble(uint8_t visible, uint8_t prev_n1, uint8_t prev_n2) {
     bool match1 = (visible == prev_n1);
     bool match2 = (visible == prev_n2);
@@ -99,6 +112,9 @@ NibbleChoice solve_free_nibble(uint8_t visible, uint8_t prev_n1, uint8_t prev_n2
 
 // ─── Visual Equivalence ──────────────────────────────────────────────────────
 
+// Check whether two (pixels, fg, bg) triples produce the same 8-pixel output.
+// Used during verification — canonicalization may swap orientation but must
+// never change visible colors.
 bool blocks_visually_equal(uint8_t pix_a, uint8_t fg_a, uint8_t bg_a,
                            uint8_t pix_b, uint8_t fg_b, uint8_t bg_b) {
     for (int bit = 7; bit >= 0; bit--) {
@@ -109,8 +125,27 @@ bool blocks_visually_equal(uint8_t pix_a, uint8_t fg_a, uint8_t bg_a,
     return true;
 }
 
+// ─── Swap Strategy ───────────────────────────────────────────────────────────
+
+// Decide canonical orientation for one block. For normal blocks, always put
+// the smaller nibble in stream 1 and larger in stream 2 (inverting pixels if
+// needed). For solid/equal-nibble blocks, delegate to solve_free_nibble to
+// maximize run continuity.
+NibbleChoice pick_nibbles(uint8_t pix, uint8_t n_a, uint8_t n_b,
+                          uint8_t prev_n1, uint8_t prev_n2) {
+    if (pix == 0x00) return solve_free_nibble(n_b, prev_n1, prev_n2);
+    if (pix == 0xFF) return solve_free_nibble(n_a, prev_n1, prev_n2);
+    if (n_a == n_b) return solve_free_nibble(n_a, prev_n1, prev_n2);
+    if (n_a < n_b) return {pix, n_a, n_b};
+    return {uint8_t(pix ^ 0xFF), n_b, n_a};
+}
+
 // ─── Canonicalization ────────────────────────────────────────────────────────
 
+// Walk all blocks column-by-column, top-to-bottom. For each block, call
+// pick_nibbles to choose canonical orientation, then write results directly
+// into column-major output buffers. Tracks prev_n1/prev_n2 per column for
+// the free-nibble optimization.
 void canonicalize_and_reorder(
     const uint8_t* pixels_row_major,
     const uint8_t* colors_row_major,
@@ -135,45 +170,21 @@ void canonicalize_and_reorder(
             uint8_t n_a = (color >> 4) & 0x0F;
             uint8_t n_b = color & 0x0F;
 
-            uint8_t chosen_pix, chosen_n1, chosen_n2;
+            NibbleChoice nc = pick_nibbles(pix, n_a, n_b, prev_n1, prev_n2);
 
-            if (row == 0) {
-                // First block in column: deterministic min/max rule
-                if (n_a <= n_b) {
-                    chosen_n1 = n_a; chosen_n2 = n_b; chosen_pix = pix;
-                } else {
-                    chosen_n1 = n_b; chosen_n2 = n_a; chosen_pix = pix ^ 0xFF;
-                }
-            } else if (pix == 0x00) {
-                // Solid block: all pixels are bg color (n_b is visible)
-                NibbleChoice nc = solve_free_nibble(n_b, prev_n1, prev_n2);
-                chosen_pix = nc.pix; chosen_n1 = nc.n1; chosen_n2 = nc.n2;
-            } else if (pix == 0xFF) {
-                // Solid block: all pixels are fg color (n_a is visible)
-                NibbleChoice nc = solve_free_nibble(n_a, prev_n1, prev_n2);
-                chosen_pix = nc.pix; chosen_n1 = nc.n1; chosen_n2 = nc.n2;
-            } else {
-                // Normal block — pick orientation minimizing cost
-                int cost_a = (n_a != prev_n1) + (n_b != prev_n2);
-                int cost_b = (n_b != prev_n1) + (n_a != prev_n2);
-                if (cost_a <= cost_b) {
-                    chosen_n1 = n_a; chosen_n2 = n_b; chosen_pix = pix;
-                } else {
-                    chosen_n1 = n_b; chosen_n2 = n_a; chosen_pix = pix ^ 0xFF;
-                }
-            }
-
-            out_pixels[col_major_idx] = chosen_pix;
-            out_fg[col_major_idx] = chosen_n1;
-            out_bg[col_major_idx] = chosen_n2;
-            prev_n1 = chosen_n1;
-            prev_n2 = chosen_n2;
+            out_pixels[col_major_idx] = nc.pix;
+            out_fg[col_major_idx] = nc.n1;
+            out_bg[col_major_idx] = nc.n2;
+            prev_n1 = nc.n1;
+            prev_n2 = nc.n2;
         }
     }
 }
 
 // ─── Build Streams ───────────────────────────────────────────────────────────
 
+// Top-level transform: canonicalize + reorder, then pack nibble pairs.
+// Returns the three streams ready for ZX0 compression.
 Streams build_streams(const uint8_t* pixels, const uint8_t* colors) {
     std::vector<uint8_t> col_pixels, col_fg, col_bg;
     canonicalize_and_reorder(pixels, colors, col_pixels, col_fg, col_bg);
@@ -187,6 +198,8 @@ Streams build_streams(const uint8_t* pixels, const uint8_t* colors) {
 
 // ─── ZX0 Compression Wrapper ─────────────────────────────────────────────────
 
+// Compress a buffer using ZX0 v2 (inverted Elias encoding). Calls the vendored
+// ZX0 optimize + compress functions, returns owned compressed bytes.
 std::vector<uint8_t> zx0_compress(const std::vector<uint8_t>& data) {
     int output_size = 0;
     int delta = 0;
@@ -213,6 +226,9 @@ std::vector<uint8_t> zx0_compress(const std::vector<uint8_t>& data) {
 
 // ─── ZX0 Decompression (in-memory) ──────────────────────────────────────────
 
+// Decompress a ZX0 v2 stream into exactly expected_size bytes.
+// Used only for verification — the real decompressor runs on the MO5.
+// Implements the ZX0 state machine: literal runs, last-offset copies, new-offset copies.
 std::vector<uint8_t> zx0_decompress(const uint8_t* src, size_t src_size, size_t expected_size) {
     std::vector<uint8_t> out;
     out.reserve(expected_size);
@@ -313,12 +329,15 @@ std::vector<uint8_t> zx0_decompress(const uint8_t* src, size_t src_size, size_t 
 
 // ─── Verification ────────────────────────────────────────────────────────────
 
+// Round-trip sanity check: decompress all 3 streams, reverse the full transform
+// (unpack nibbles, column-to-row reorder), then verify every block is visually
+// identical to the original input. Hard error on any mismatch.
 void verify(const Streams& streams, const CompressedStreams& compressed,
             const uint8_t* orig_pixels, const uint8_t* orig_colors) {
     // Decompress
-    auto dec_pixels = zx0_decompress(compressed.pixels_zx0.data(), compressed.pixels_zx0.size(), 8000);
-    auto dec_fg     = zx0_decompress(compressed.fg_zx0.data(), compressed.fg_zx0.size(), 4000);
-    auto dec_bg     = zx0_decompress(compressed.bg_zx0.data(), compressed.bg_zx0.size(), 4000);
+    auto dec_pixels = zx0_decompress(compressed.pixels_zx0.data(), compressed.pixels_zx0.size(), TOTAL_BLOCKS);
+    auto dec_fg     = zx0_decompress(compressed.fg_zx0.data(), compressed.fg_zx0.size(), PACKED_NIBBLES);
+    auto dec_bg     = zx0_decompress(compressed.bg_zx0.data(), compressed.bg_zx0.size(), PACKED_NIBBLES);
 
     // Check decompressed matches pre-compression streams
     if (dec_pixels != streams.pixels)
@@ -350,6 +369,7 @@ void verify(const Streams& streams, const CompressedStreams& compressed,
 
 // ─── File I/O ────────────────────────────────────────────────────────────────
 
+// Read a binary file, verify it matches expected_size exactly.
 std::vector<uint8_t> read_bin(const std::string& path, size_t expected_size) {
     FILE* f = fopen(path.c_str(), "rb");
     if (!f) throw std::runtime_error("Cannot open file: " + path);
@@ -373,6 +393,7 @@ std::vector<uint8_t> read_bin(const std::string& path, size_t expected_size) {
     return data;
 }
 
+// Write the three compressed streams concatenated into a single .mo5z file.
 void write_output(const CompressedStreams& c, const std::string& path) {
     FILE* f = fopen(path.c_str(), "wb");
     if (!f) throw std::runtime_error("Cannot open output: " + path);
@@ -423,11 +444,11 @@ void print_stats(const CompressedStreams& c, const std::string& output_path) {
     auto pct = [](size_t compressed, size_t original) {
         return 100.0 * compressed / original;
     };
-    size_t total_in = 8000 + 4000 + 4000;
+    size_t total_in = TOTAL_BLOCKS + PACKED_NIBBLES + PACKED_NIBBLES;
     size_t total_out = c.pixels_zx0.size() + c.fg_zx0.size() + c.bg_zx0.size();
-    printf("pixels: %5zu → %5zu (%.1f%%)\n", (size_t)8000, c.pixels_zx0.size(), pct(c.pixels_zx0.size(), 8000));
-    printf("fg:     %5zu → %5zu (%.1f%%)\n", (size_t)4000, c.fg_zx0.size(), pct(c.fg_zx0.size(), 4000));
-    printf("bg:     %5zu → %5zu (%.1f%%)\n", (size_t)4000, c.bg_zx0.size(), pct(c.bg_zx0.size(), 4000));
+    printf("pixels: %5d → %5zu (%.1f%%)\n", TOTAL_BLOCKS, c.pixels_zx0.size(), pct(c.pixels_zx0.size(), TOTAL_BLOCKS));
+    printf("fg:     %5d → %5zu (%.1f%%)\n", PACKED_NIBBLES, c.fg_zx0.size(), pct(c.fg_zx0.size(), PACKED_NIBBLES));
+    printf("bg:     %5d → %5zu (%.1f%%)\n", PACKED_NIBBLES, c.bg_zx0.size(), pct(c.bg_zx0.size(), PACKED_NIBBLES));
     printf("total: %5zu → %5zu (%.1f%%)\n", total_in, total_out, pct(total_out, total_in));
     printf("wrote %s\n", output_path.c_str());
 }
@@ -438,8 +459,8 @@ void print_stats(const CompressedStreams& c, const std::string& output_path) {
 int main(int argc, char* argv[]) {
     try {
         Options opts = parse_args(argc, argv);
-        auto pixels = read_bin(opts.pixels_path, 8000);
-        auto colors = read_bin(opts.colors_path, 8000);
+        auto pixels = read_bin(opts.pixels_path, TOTAL_BLOCKS);
+        auto colors = read_bin(opts.colors_path, TOTAL_BLOCKS);
 
         Streams streams = build_streams(pixels.data(), colors.data());
 

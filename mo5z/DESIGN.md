@@ -5,7 +5,7 @@ Standalone tool that compresses MO5 pixel + color banks into a single ZX0-compre
 ## Usage
 
 ```
-mo5z <pixels.bin> <colors.bin> -o <stem>
+mo5z <pixels.bin> <colors.bin> [-o <stem>]
 ```
 
 - `pixels.bin`: 8000-byte pixel bank (row-major, as output by png2mo5)
@@ -28,7 +28,7 @@ The decompressor reads sequentially: decompress stream 1, pointer advances, deco
 
 ```
 read bins
-    → canonicalize (per-block swap decision)
+    → canonicalize (per-block nibble sorting + free-nibble optimization)
     → reorder to column-major
     → split color nibbles + pack pairs
     → compress each stream with ZX0
@@ -42,20 +42,18 @@ Each 8-pixel block has two equivalent representations:
 - `(pixels, n1<<4 | n2)`
 - `(pixels XOR 0xFF, n2<<4 | n1)`
 
-### Swap Decision (greedy, joint cost)
+### Swap Decision (sorted)
 
-Process blocks column-by-column, top-to-bottom. For each block, pick the orientation `(n1, n2)` or `(n2, n1)` that best matches the previous block's nibble pair `(prev_n1, prev_n2)`. This maximizes run continuity in both nibble streams simultaneously.
+For each non-solid block, the smaller nibble always goes to stream 1, the larger to stream 2. If the original `n_a < n_b`, keep as-is; otherwise swap (invert pixels, flip nibbles). This produces highly regular nibble streams that compress well with ZX0.
 
-**First block in each column:** deterministic — `min(a, b)` goes to stream 1, `max(a, b)` to stream 2.
+When `n_a == n_b`, the block is treated as a free-nibble case (same as solid blocks).
 
 ### Free Nibble (solid blocks)
 
-When `pixels = 0x00` or `pixels = 0xFF`, only one nibble is visible. The invisible nibble is a free variable:
+When `pixels = 0x00` or `pixels = 0xFF`, only one nibble is visible. The invisible nibble is a free variable set to maximize run continuity:
 
-1. If the actual color matches `prev_n1` → put it in stream 1 (pixels = `0xFF`), set stream 2 to `prev_n2`.
-2. If the actual color matches `prev_n2` → put it in stream 2 (pixels = `0x00`), set stream 1 to `prev_n1`.
-3. Matches both → put in stream 2 (pixels = `0x00`).
-4. Matches neither → put in stream 2 (pixels = `0x00`), stream 1 gets `prev_n1`.
+1. If the visible color matches `prev_n1` only → place it in stream 1 (pixels = `0xFF`), set stream 2 to `prev_n2`.
+2. All other cases → place it in stream 2 (pixels = `0x00`), set stream 1 to `prev_n1`.
 
 ## Data Layout
 
@@ -70,7 +68,7 @@ ZX0 optimal compression (Einar Saukas). Source vendored from `github.com/einar-s
 
 ## Verification
 
-After compression, all 3 streams are decompressed in-process and the full reverse transform is applied (unpack nibbles, recombine color bytes, column-to-row reorder). The result is compared byte-for-byte against the original inputs. Mismatch = hard error.
+After compression, all 3 streams are decompressed in-process and the full reverse transform is applied (unpack nibbles, recombine color bytes, column-to-row reorder). The result is compared block-by-block for visual equivalence against the original inputs. Mismatch = hard error.
 
 ## Stats
 
