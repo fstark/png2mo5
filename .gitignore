@@ -1,0 +1,25 @@
+# Build outputs
+png2mo5/png2mo5
+png2mo5/test_png2mo5
+mo5z/mo5z
+
+# Generated files
+*.bin
+*.mo5z
+*_preview.png
+*_preview-old.png
+
+# Python venv
+venv/
+
+# macOS
+.DS_Store
+
+# Editor
+*.swp
+*.swo
+*~
+
+# Object files
+*.o
+*.d
