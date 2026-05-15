@@ -2,12 +2,15 @@
 png2mo5/png2mo5
 png2mo5/test_png2mo5
 mo5z/mo5z
+mo5z/test_mo5z
+mo5z/png2mo5-oldbin
+mo5z2png/mo5z2png
 
 # Generated files
 *.bin
 *.mo5z
-*_preview.png
-*_preview-old.png
+*.png
+!imgs/**/*.png
 
 # Python venv
 venv/
