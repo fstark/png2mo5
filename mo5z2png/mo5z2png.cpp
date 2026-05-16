@@ -114,7 +114,7 @@ std::vector<uint8_t> zx0_decompress(const uint8_t* src, size_t src_size,
             break;
         }
         case COPY_FROM_NEW: {
-            int msb = read_elias(true);
+            int msb = read_elias(false);
             if (msb == 256) { state = DONE; break; }
             last_offset = msb * 128 - (read_byte() >> 1);
             backtrack = 1;
@@ -221,13 +221,13 @@ int main(int argc, char* argv[]) {
         // Decompress three concatenated ZX0 streams
         size_t consumed = 0;
 
-        auto pixels_col = zx0_decompress(ptr, remaining, TOTAL_BLOCKS, &consumed);
-        ptr += consumed; remaining -= consumed;
-
         auto fg_packed = zx0_decompress(ptr, remaining, PACKED_NIBBLES, &consumed);
         ptr += consumed; remaining -= consumed;
 
         auto bg_packed = zx0_decompress(ptr, remaining, PACKED_NIBBLES, &consumed);
+        ptr += consumed; remaining -= consumed;
+
+        auto pixels_col = zx0_decompress(ptr, remaining, TOTAL_BLOCKS, &consumed);
 
         // Unpack nibble pairs → 8000 each
         auto fg_nibbles = unpack_nibble_pairs(fg_packed);

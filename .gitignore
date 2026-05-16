@@ -5,6 +5,12 @@ mo5z/mo5z
 mo5z/test_mo5z
 mo5z/png2mo5-oldbin
 mo5z2png/mo5z2png
+imgviewer/zx0pack
+imgviewer/*.k7
+imgviewer/*.zx0
+k7tool/k7tool
+k7tool/test_k7tool
+k7tool/output.k7
 
 # Generated files
 *.bin

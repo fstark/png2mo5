@@ -19,10 +19,10 @@ Produces `<stem>.mo5z`.
 Three concatenated ZX0 streams (self-terminating, no header):
 
 ```
-[pixels_zx0][fg_nibbles_zx0][bg_nibbles_zx0]
+[fg_nibbles_zx0][bg_nibbles_zx0][pixels_zx0]
 ```
 
-The decompressor reads sequentially: decompress stream 1, pointer advances, decompress stream 2, pointer advances, decompress stream 3.
+Color-first ordering: the decompressor reads sequentially (fg → bg → pixels), enabling progressive image reveal on the MO5.
 
 ## Pipeline
 

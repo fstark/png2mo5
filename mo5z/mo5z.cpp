@@ -215,7 +215,7 @@ std::vector<uint8_t> zx0_compress(const std::vector<uint8_t>& data) {
         static_cast<int>(data.size()),
         0,    // skip
         0,    // backwards_mode = false
-        1,    // invert_mode = true (v2 format)
+        0,    // invert_mode = false (v1 format, matches 6809 standard decompressor)
         &output_size,
         &delta
     );
@@ -303,7 +303,7 @@ std::vector<uint8_t> zx0_decompress(const uint8_t* src, size_t src_size, size_t 
             break;
         }
         case COPY_FROM_NEW: {
-            int msb = read_elias(true);
+            int msb = read_elias(false);
             if (msb == 256) { state = DONE; break; }
             last_offset = msb * 128 - (read_byte() >> 1);
             backtrack_d = 1;
@@ -403,9 +403,9 @@ void write_output(const CompressedStreams& c, const std::string& path) {
             throw std::runtime_error("Write failed: " + path);
         }
     };
-    write_all(c.pixels_zx0);
     write_all(c.fg_zx0);
     write_all(c.bg_zx0);
+    write_all(c.pixels_zx0);
     fclose(f);
 }
 
