@@ -1,4 +1,4 @@
-# imgviewer — MO5 Image Viewer
+# mo5zviewer — MO5 Image Viewer
 
 Display a single ZX0-compressed MO5 image from cassette tape.
 
@@ -114,7 +114,7 @@ for col = 0..39:
 
 ## ZX0 Decompressor
 
-Uses `imgviewer/zx0_6809_standard.asm` — a ZX0 **v1** decompressor (invert_mode=0) with all DP optimizations enabled.
+Uses `mo5zviewer/zx0_6809_standard.asm` — a ZX0 **v1** decompressor (invert_mode=0) with all DP optimizations enabled.
 
 DP register is `$20` on MO5 (direct page = `$2000–$20FF`). Variables placed in unused area:
 
@@ -170,7 +170,7 @@ brew install lwtools
 lwasm --raw -o mo5zviewer.bin viewer.asm
 ```
 
-Orchestrated by `Makefile` in `imgviewer/`.
+Orchestrated by `Makefile` in `mo5zviewer/`.
 
 ## Testing
 
