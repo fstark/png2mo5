@@ -67,4 +67,4 @@ k7tool/k7tool -o lena.k7 lena.bin:0x2800:0x2800
 
 ---
 
-<sub>All code in this repo — including the 6809 assembly — was written by Claude Opus 4.6 under human supervision.</sub>
+<sub>All the code in this repo — including the 6809 assembly — was written by Claude Opus 4.6 under my supervision.</sub>
