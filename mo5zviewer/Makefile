@@ -12,9 +12,11 @@ IMG_STEM  = $(basename $(notdir $(IMG)))
 
 all: mo5zviewer.bin
 
+ZX0_ASM  := ../lib/zx0/asm/zx0_6809_standard.asm
+
 # === Pre-built viewer stub (assemble once, reuse for any image) ===
-mo5zviewer.bin: viewer.asm zx0_6809_standard.asm
-	lwasm --raw -o $@ $<
+mo5zviewer.bin: viewer.asm $(ZX0_ASM)
+	lwasm --raw --includedir=../lib/zx0/asm -o $@ $<
 
 # === Full K7 from a PNG (uses pre-built viewer) ===
 viewer: $(IMG_STEM).k7

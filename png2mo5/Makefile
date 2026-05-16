@@ -1,11 +1,12 @@
 CXX      ?= g++
 CXXFLAGS ?= -std=c++23 -O2 -Wall -Wextra
+LIB      := ../lib
 
-png2mo5: png2mo5.cpp stb/stb_image.h stb/stb_image_resize2.h stb/stb_image_write.h
-	$(CXX) $(CXXFLAGS) -o $@ $<
+png2mo5: png2mo5.cpp $(LIB)/stb/stb_image.h $(LIB)/stb/stb_image_resize2.h $(LIB)/stb/stb_image_write.h
+	$(CXX) $(CXXFLAGS) -I$(LIB) -o $@ $<
 
-test_png2mo5: test_png2mo5.cpp png2mo5.cpp catch2/catch_amalgamated.cpp
-	$(CXX) $(CXXFLAGS) -DPNG2MO5_TESTING -o $@ test_png2mo5.cpp catch2/catch_amalgamated.cpp
+test_png2mo5: test_png2mo5.cpp png2mo5.cpp $(LIB)/catch2/catch_amalgamated.cpp
+	$(CXX) $(CXXFLAGS) -I$(LIB) -DPNG2MO5_TESTING -o $@ test_png2mo5.cpp $(LIB)/catch2/catch_amalgamated.cpp
 
 test: test_png2mo5
 	./test_png2mo5
