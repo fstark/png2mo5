@@ -293,9 +293,9 @@ TEST_CASE("select_pair — prefers pair with lower outgoing error") {
 }
 
 TEST_CASE("ERROR_DAMPING default") {
-    REQUIRE(ERROR_DAMPING == Catch::Approx(0.8f));
+    REQUIRE(ERROR_DAMPING == Catch::Approx(0.9f));
     Options opts;
-    REQUIRE(opts.error_damping == Catch::Approx(0.8f));
+    REQUIRE(opts.error_damping == Catch::Approx(0.9f));
 }
 
 // ============================================================================
@@ -529,18 +529,18 @@ TEST_CASE("parse_args — minimal") {
     REQUIRE(opts.output_basename == "photo");
     REQUIRE(!opts.nearest);
     REQUIRE(!opts.no_dither);
-    REQUIRE(!opts.no_preview);
+    REQUIRE(!opts.preview);
 }
 
 TEST_CASE("parse_args — full flags") {
-    char* argv[] = {(char*)"png2mo5", (char*)"dir/photo.jpg", (char*)"out",
-                    (char*)"--nearest", (char*)"--no-dither", (char*)"--no-preview"};
-    Options opts = parse_args(6, argv);
+    char* argv[] = {(char*)"png2mo5", (char*)"dir/photo.jpg", (char*)"-o", (char*)"out",
+                    (char*)"--nearest", (char*)"--no-dither", (char*)"--preview"};
+    Options opts = parse_args(7, argv);
     REQUIRE(opts.input_path == "dir/photo.jpg");
     REQUIRE(opts.output_basename == "out");
     REQUIRE(opts.nearest);
     REQUIRE(opts.no_dither);
-    REQUIRE(opts.no_preview);
+    REQUIRE(opts.preview);
 }
 
 TEST_CASE("parse_args — basename derived from input path") {

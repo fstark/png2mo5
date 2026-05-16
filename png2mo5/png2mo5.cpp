@@ -64,11 +64,12 @@ struct Mo5Screen {
 struct Options {
     std::string input_path;
     std::string output_basename;
-    bool nearest        = false;
-    bool no_dither      = false;
-    bool bin            = false;
-    bool preview        = false;
-    float error_damping = ERROR_DAMPING;
+    bool nearest          = false;
+    bool no_dither        = false;
+    bool bin              = false;
+    bool preview          = false;
+    bool explicit_output  = false;
+    float error_damping   = ERROR_DAMPING;
 };
 
 struct ColorPair {
@@ -537,6 +538,7 @@ Options parse_args(int argc, char** argv) {
             if (++i >= argc)
                 throw std::runtime_error("-o requires an output path");
             opts.output_basename = argv[i];
+            opts.explicit_output = true;
         } else if (arg == "--damping") {
             if (++i >= argc)
                 throw std::runtime_error("--damping requires a value (0.0–1.0)");
@@ -600,7 +602,9 @@ int main(int argc, char** argv) {
 
     if (opts.preview || !opts.bin) {
         Palette pal = init_palette();
-        std::string preview_path = opts.output_basename + "_preview.png";
+        std::string preview_path = opts.explicit_output
+            ? opts.output_basename + ".png"
+            : opts.output_basename + "_preview.png";
         write_preview(preview_path.c_str(), screen, pal);
         std::printf("Wrote %s\n", preview_path.c_str());
     }
