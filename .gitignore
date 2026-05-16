@@ -14,7 +14,7 @@ k7tool/output.k7
 *.bin
 *.mo5z
 *.png
-!imgs/**/*.png
+!assets/**/*.png
 
 # Python venv
 venv/
