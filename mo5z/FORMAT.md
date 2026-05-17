@@ -90,4 +90,4 @@ The streams use ZX0 with inverted Elias encoding (v2 format). A 6809 decompresso
 For reference, the MO5 video RAM layout that the decoded data targets:
 
 - **Pixel bank** at `$0000–$1F3F`: 8000 bytes, each byte = 8 pixels in a block (MSB = leftmost pixel). Row-major: row 0 cols 0–39, row 1 cols 0–39, etc.
-- **Color bank** at `$2000–$3F3F`: 8000 bytes, each byte = `fg<<4 | bg` for one 8-pixel block. Same row-major layout.
+- **Color bank** at `$0000–$1F3F`: 8000 bytes (bank-switched via `$A7C0` bit 0), each byte = `fg<<4 | bg` for one 8-pixel block. Same row-major layout.
