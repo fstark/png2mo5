@@ -12,6 +12,6 @@ test: test_png2mo5
 	./test_png2mo5
 
 clean:
-	rm -f png2mo5 test_png2mo5
+	rm -f png2mo5 png2mo5-rgb test_png2mo5
 
 .PHONY: test clean

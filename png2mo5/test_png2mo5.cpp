@@ -71,15 +71,15 @@ TEST_CASE("xyz_to_lab") {
 TEST_CASE("srgb_to_lab round-trip through known values") {
     Palette pal = init_palette();
     for (int i = 0; i < 16; ++i) {
-        REQUIRE(pal.lab[i].L >= 0.0f);
-        REQUIRE(pal.lab[i].L <= 100.0f);
+        REQUIRE(pal.colors[i].L >= 0.0f);
+        REQUIRE(pal.colors[i].L <= 100.0f);
     }
     // Black → L ≈ 0
-    REQUIRE_THAT(pal.lab[0].L, WithinAbs(0.0f, 0.1f));
+    REQUIRE_THAT(pal.colors[0].L, WithinAbs(0.0f, 0.1f));
     // White → L ≈ 100
-    REQUIRE_THAT(pal.lab[7].L, WithinAbs(100.0f, 0.1f));
+    REQUIRE_THAT(pal.colors[7].L, WithinAbs(100.0f, 0.1f));
     // Red → positive a*
-    REQUIRE(pal.lab[1].a > 30.0f);
+    REQUIRE(pal.colors[1].a > 30.0f);
 }
 
 TEST_CASE("lab_distance_sq") {
@@ -125,13 +125,13 @@ TEST_CASE("init_palette RGB values") {
 
 TEST_CASE("init_palette Lab values are reasonable") {
     Palette pal = init_palette();
-    REQUIRE_THAT(pal.lab[0].L, WithinAbs(0.0f, 0.1f));  // black
-    REQUIRE_THAT(pal.lab[7].L, WithinAbs(100.0f, 0.1f)); // white
-    REQUIRE(pal.lab[1].a > 0.0f);  // red: positive a*
-    REQUIRE(pal.lab[2].a < 0.0f);  // green: negative a*
+    REQUIRE_THAT(pal.colors[0].L, WithinAbs(0.0f, 0.1f));  // black
+    REQUIRE_THAT(pal.colors[7].L, WithinAbs(100.0f, 0.1f)); // white
+    REQUIRE(pal.colors[1].a > 0.0f);  // red: positive a*
+    REQUIRE(pal.colors[2].a < 0.0f);  // green: negative a*
     for (int i = 0; i < 16; ++i) {
-        REQUIRE(pal.lab[i].L >= 0.0f);
-        REQUIRE(pal.lab[i].L <= 100.0f);
+        REQUIRE(pal.colors[i].L >= 0.0f);
+        REQUIRE(pal.colors[i].L <= 100.0f);
     }
 }
 
@@ -169,7 +169,7 @@ TEST_CASE("reverse_bits") {
 TEST_CASE("select_pair — uniform block") {
     Palette pal = init_palette();
     Lab block[8];
-    for (int i = 0; i < 8; ++i) block[i] = pal.lab[3];  // all yellow
+    for (int i = 0; i < 8; ++i) block[i] = pal.colors[3];  // all yellow
 
     BlockResult br = select_pair(block, pal);
     // Both fg and bg should be 3 (yellow), OR one of them is 3 with matching bitmap
@@ -184,7 +184,7 @@ TEST_CASE("select_pair — two-color block") {
     Lab block[8];
     // alternating red (1) and blue (4)
     for (int i = 0; i < 8; ++i)
-        block[i] = pal.lab[(i % 2 == 0) ? 1 : 4];
+        block[i] = pal.colors[(i % 2 == 0) ? 1 : 4];
 
     BlockResult br = select_pair(block, pal);
     // Pair should be {1,4} in some order
@@ -209,13 +209,13 @@ TEST_CASE("select_pair — all same color picks optimal pair") {
         for (int i = 0; i < BLOCK_W; ++i) scratch[i] = block[i];
         float outgoing = 0.0f;
         for (int i = 0; i < BLOCK_W; ++i) {
-            float d1 = lab_distance_sq(scratch[i], pal.lab[c1]);
-            float d2 = lab_distance_sq(scratch[i], pal.lab[c2]);
+            float d1 = lab_distance_sq(scratch[i], pal.colors[c1]);
+            float d2 = lab_distance_sq(scratch[i], pal.colors[c2]);
             uint8_t chosen = (d1 <= d2) ? c1 : c2;
             Lab err;
-            err.L = scratch[i].L - pal.lab[chosen].L;
-            err.a = scratch[i].a - pal.lab[chosen].a;
-            err.b = scratch[i].b - pal.lab[chosen].b;
+            err.L = scratch[i].L - pal.colors[chosen].L;
+            err.a = scratch[i].a - pal.colors[chosen].a;
+            err.b = scratch[i].b - pal.colors[chosen].b;
             float mag = err.L * err.L + err.a * err.a + err.b * err.b;
             if (i < BLOCK_W - 1) {
                 scratch[i + 1].L += err.L * (7.0f / 16.0f);
@@ -264,13 +264,13 @@ TEST_CASE("select_pair — prefers pair with lower outgoing error") {
         for (int i = 0; i < BLOCK_W; ++i) scratch[i] = block[i];
         float outgoing = 0.0f;
         for (int i = 0; i < BLOCK_W; ++i) {
-            float d1 = lab_distance_sq(scratch[i], pal.lab[c1]);
-            float d2 = lab_distance_sq(scratch[i], pal.lab[c2]);
+            float d1 = lab_distance_sq(scratch[i], pal.colors[c1]);
+            float d2 = lab_distance_sq(scratch[i], pal.colors[c2]);
             uint8_t chosen = (d1 <= d2) ? c1 : c2;
             Lab err;
-            err.L = scratch[i].L - pal.lab[chosen].L;
-            err.a = scratch[i].a - pal.lab[chosen].a;
-            err.b = scratch[i].b - pal.lab[chosen].b;
+            err.L = scratch[i].L - pal.colors[chosen].L;
+            err.a = scratch[i].a - pal.colors[chosen].a;
+            err.b = scratch[i].b - pal.colors[chosen].b;
             float mag = err.L * err.L + err.a * err.a + err.b * err.b;
             if (i < BLOCK_W - 1) {
                 scratch[i + 1].L += err.L * (7.0f / 16.0f);
@@ -526,31 +526,31 @@ TEST_CASE("parse_args — minimal") {
     char* argv[] = {(char*)"png2mo5", (char*)"photo.png"};
     Options opts = parse_args(2, argv);
     REQUIRE(opts.input_path == "photo.png");
-    REQUIRE(opts.output_basename == "photo");
+    REQUIRE(opts.output_path == "photo");
     REQUIRE(!opts.nearest);
     REQUIRE(!opts.no_dither);
-    REQUIRE(!opts.preview);
+    REQUIRE(!opts.lab_mode);
 }
 
 TEST_CASE("parse_args — full flags") {
     char* argv[] = {(char*)"png2mo5", (char*)"dir/photo.jpg", (char*)"-o", (char*)"out",
-                    (char*)"--nearest", (char*)"--no-dither", (char*)"--preview"};
+                    (char*)"--nearest", (char*)"--no-dither", (char*)"--lab"};
     Options opts = parse_args(7, argv);
     REQUIRE(opts.input_path == "dir/photo.jpg");
-    REQUIRE(opts.output_basename == "out");
+    REQUIRE(opts.output_path == "out");
     REQUIRE(opts.nearest);
     REQUIRE(opts.no_dither);
-    REQUIRE(opts.preview);
+    REQUIRE(opts.lab_mode);
 }
 
 TEST_CASE("parse_args — basename derived from input path") {
     char* argv1[] = {(char*)"png2mo5", (char*)"/some/path/image.bmp"};
     Options opts1 = parse_args(2, argv1);
-    REQUIRE(opts1.output_basename == "image");
+    REQUIRE(opts1.output_path == "image");
 
     char* argv2[] = {(char*)"png2mo5", (char*)"file.with.dots.png"};
     Options opts2 = parse_args(2, argv2);
-    REQUIRE(opts2.output_basename == "file.with.dots");
+    REQUIRE(opts2.output_path == "file.with.dots");
 }
 
 TEST_CASE("parse_args — flags in any order") {
