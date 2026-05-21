@@ -4,13 +4,15 @@ https://github.com/user-attachments/assets/ce33dc24-45bc-4362-9a23-4df7d69dfb26
 
 Convert any PNG into something a 1984 Thomson MO5 can actually display.
 
+More details at the [companion blog post](https://stark.fr/blog/png2mo5/)
+
 The MO5 has a fixed 16-color palette and a brutal constraint: each group of 8 horizontal pixels can only use 2 colors. That's it. No tricks, no workarounds, just 2 colors per block.
 
 And the palette looks like this:
 
 ![MO5 palette](assets/mo5_palette.png)
 
-The converter works in CIELAB perceptual color space — it brute-forces all 136 possible color pairs for every 8-pixel block, simulating Floyd-Steinberg error diffusion inside each candidate to find the pair that minimizes outgoing perceptual error. Then it commits the winner and diffuses the quantization error (damped ~90%) across the image. The result is surprisingly good for 16 KB of video RAM.
+The converter optionally works in CIELAB perceptual color space — it brute-forces all 136 possible color pairs for every 8-pixel block, simulating Floyd-Steinberg error diffusion inside each candidate to find the pair that minimizes outgoing perceptual error. Then it commits the winner and diffuses the quantization error (damped ~90%) across the image. The result is surprisingly good for 16 KB of video RAM.
 
 C++23. Single-file tools. No dependencies beyond stb headers and a ZX0 compressor.
 
